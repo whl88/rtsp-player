@@ -1,7 +1,6 @@
 const {EventEmitter} = require('events')
 const { spawn } = require('child_process');
 const path = require('path')
-const { i420ToRgba } = require('wrtc').nonstandard;
 const isDevelopment = process.env.NODE_ENV !== 'production'
 
 export default class RtspPlayer extends EventEmitter{
@@ -48,13 +47,13 @@ export default class RtspPlayer extends EventEmitter{
         const info = await this.getInfo(url)
         this.canvas.width = info.get('width')
         this.canvas.height = info.get('height')
-        const perFrameSize = 1.5 * this.canvas.width * this.canvas.height
+        const perFrameSize = 4 * this.canvas.width * this.canvas.height
         let dataFromRtsp = Buffer.alloc(0);
 
         if(this.ffmpegProc && !this.ffmpegProc.killed){
             this.ffmpegProc.kill()
         }
-        const commandStr = `-rtsp_transport tcp -threads 0 -y -re -stream_loop 0 -i ${url} -an -r 10 -s ${this.canvas.width}x${this.canvas.height} -pix_fmt yuv420p -qscale:v 0.01 -f rawvideo -`
+        const commandStr = `-rtsp_transport tcp -threads 0 -y -re -stream_loop 0 -i ${url} -an -r 5 -s ${this.canvas.width}x${this.canvas.height} -pix_fmt rgba -qscale:v 0.01 -f rawvideo -`
         this.ffmpegProc = spawn(this.ffmpegPath, commandStr.split(' '))
 
         this.ffmpegProc.stdout.on('data',async (data)=>{
@@ -63,13 +62,7 @@ export default class RtspPlayer extends EventEmitter{
                 this.frameData = {
                     width:this.canvas.width,
                     height:this.canvas.height,
-                    data: new Uint8ClampedArray(this.canvas.width * this.canvas.height * 4) }
-                    
-                i420ToRgba({
-                    width:this.canvas.width,
-                    height:this.canvas.height,
-                    data: new Uint8ClampedArray(dataFromRtsp.slice(0,perFrameSize)) 
-                }, this.frameData)
+                    data: new Uint8ClampedArray(dataFromRtsp.slice(0,perFrameSize)) }
                 
                 dataFromRtsp = dataFromRtsp.slice(perFrameSize)
                 this.draw()
