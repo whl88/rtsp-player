@@ -25,7 +25,7 @@ export default class RtspPlayer extends EventEmitter{
      */
     getInfo(url){
         return new Promise((resolve,reject)=>{
-            this.ffprobeProc = spawn(this.ffprobePath, ['-show_streams',url])
+            this.ffprobeProc = spawn(this.ffprobePath, `-rtsp_transport tcp -show_streams ${url}`.split(' '))
             let streamInfo = Buffer.alloc(0)
 
             this.ffprobeProc.stdout.on('data',(data) => {
@@ -49,11 +49,12 @@ export default class RtspPlayer extends EventEmitter{
         this.canvas.height = info.get('height')
         const perFrameSize = 4 * this.canvas.width * this.canvas.height
         let dataFromRtsp = Buffer.alloc(0);
-
+        
         if(this.ffmpegProc && !this.ffmpegProc.killed){
             this.ffmpegProc.kill()
         }
         const commandStr = `-rtsp_transport tcp -threads 0 -y -re -stream_loop 0 -i ${url} -an -r 5 -s ${this.canvas.width}x${this.canvas.height} -pix_fmt rgba -qscale:v 0.01 -f rawvideo -`
+        console.log(commandStr)
         this.ffmpegProc = spawn(this.ffmpegPath, commandStr.split(' '))
 
         this.ffmpegProc.stdout.on('data',async (data)=>{
