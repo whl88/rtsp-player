@@ -8,11 +8,10 @@ export default class RtspPlayer extends EventEmitter{
         super()
         this.container = container
         this.canvas = document.createElement('canvas')
+        this.canvas.id = ''
         this.canvas.style.width = '100%'
         this.canvas.style.height = '100%'
         this.canvasCtx = this.canvas.getContext('2d')
-
-        container.appendChild(this.canvas)
 
         this.ffmpegPath = isDevelopment?__static+'/ffmpeg-4.4/bin/ffmpeg.exe':path.resolve(__static,'../../lib/ffmpeg-4.4/bin/ffmpeg.exe')
         this.ffprobePath = isDevelopment?__static+'/ffmpeg-4.4/bin/ffprobe.exe':path.resolve(__static,'../../lib/ffmpeg-4.4/bin/ffprobe.exe')
@@ -44,6 +43,8 @@ export default class RtspPlayer extends EventEmitter{
     }
     
     async play(url){
+        this.container.querySelector('canvas')?.remove()
+        this.container.appendChild(this.canvas)
         const info = await this.getInfo(url)
         this.canvas.width = info.get('width')
         this.canvas.height = info.get('height')
@@ -90,6 +91,42 @@ export default class RtspPlayer extends EventEmitter{
 
     }
 
+    /**
+     * 截图
+     * @param {string} url 需要截屏的url
+     */
+    async screenShort(url){
+        const info = await this.getInfo(url)
+        this.canvas.width = info.get('width')
+        this.canvas.height = info.get('height')
+        const perFrameSize = 4 * this.canvas.width * this.canvas.height
+        let dataFromRtsp = Buffer.alloc(0);
+        
+        if(this.ffmpegProc && !this.ffmpegProc.killed){
+            this.ffmpegProc.kill()
+        }
+        const commandStr = `-rtsp_transport tcp -threads 0 -y -re -stream_loop 0 -i ${url} -an -r 5 -s ${this.canvas.width}x${this.canvas.height} -pix_fmt rgba -qscale:v 0.01 -f rawvideo -`
+        this.ffmpegProc = spawn(this.ffmpegPath, commandStr.split(' '))
+
+        return new Promise((resolve)=>{
+            this.ffmpegProc.stdout.on('data',async (data)=>{
+                dataFromRtsp = Buffer.concat([dataFromRtsp,data])
+                if(dataFromRtsp.length >= perFrameSize){
+                    this.frameData = {
+                        width:this.canvas.width,
+                        height:this.canvas.height,
+                        data: new Uint8ClampedArray(dataFromRtsp.slice(0,perFrameSize))
+                    }
+                    
+                    dataFromRtsp = dataFromRtsp.slice(perFrameSize)
+                    resolve(this.draw())
+                    this.distroy()
+                    // this.emit('frame',this.frameData.data)
+                }
+            })
+        })
+    }
+
     draw(){
         const frame = new ImageData(
             Uint8ClampedArray.from(this.frameData.data),
@@ -97,6 +134,7 @@ export default class RtspPlayer extends EventEmitter{
             this.canvas.height
         );
         this.canvasCtx.putImageData(frame, 0, 0);
+        return this.canvas.toDataURL('image/jpeg',1)
     }
 
     distroy(){

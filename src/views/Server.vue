@@ -2,11 +2,13 @@
   <div class="main">
     <div ref="videoBox">
     </div>
+    <img ref="short">
     <div class="button-box">
       <input type="text" v-model="url">
       <button @click="play">播放</button>
       <button @click="distroyPlayer">销毁</button>
       <button @click="getInfo">获取视频信息</button>
+      <button @click="screenShort">截屏</button>
     </div>
   </div>
 </template>
@@ -31,6 +33,11 @@ export default {
     },
     play() {
       this.rtspPlayer.play(this.url)
+    },
+    screenShort(){
+      this.rtspPlayer.screenShort(this.url).then((short)=>{
+        this.$refs.short.src = short
+      })
     },
     distroyPlayer() {
       this.rtspPlayer.distroy()
